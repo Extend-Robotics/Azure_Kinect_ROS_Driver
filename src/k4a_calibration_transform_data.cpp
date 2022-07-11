@@ -16,6 +16,7 @@
 #include <tf2/LinearMath/Transform.h>
 #include <tf2/convert.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <opencv2/opencv.hpp>
 
 // Project headers
 //
@@ -291,9 +292,23 @@ void K4ACalibrationTransformData::getDepthCameraInfo(sensor_msgs::CameraInfo& ca
   //  (cx', cy') - these may differ from the values in K.
   // For monocular cameras, Tx = Ty = 0. Normally, monocular cameras will
   //  also have R = the identity and P[1:3,1:3] = K.
-  camera_info.P = {parameters->param.fx,  0.0f,                   parameters->param.cx,   0.0f,
-                   0.0f,                  parameters->param.fy,   parameters->param.cy,   0.0f,
-                   0.0f,                  0.0,                    1.0f,                   0.0f};
+
+  // From https://wiki.ros.org/image_pipeline/CameraInfo
+  // (4.1 Simple monocular rectification)
+  // [...] since ROS Electric, the camera_calibration package does monocular calibration to get K'
+  // using OpenCV's getOptimalNewCameraMatrix() function with argument 'alpha'=0.0 that cause K' ≠ K
+
+  // We mimic camera_calibration and set P from K' obtained from OpenCV's getOptimalNewCameraMatrix
+  // This way we get consistent behavior for factory calibration and camera_calibration package
+
+  cv::Matx33d intrinsics = cv::Matx33d(camera_info.K.data());
+  cv::Size imageSize(camera_info.width, camera_info.height);
+
+  cv::Matx33d Kp = cv::getOptimalNewCameraMatrix(intrinsics, camera_info.D, imageSize, 0.0);
+
+  camera_info.P = {Kp(0, 0), Kp(0, 1), Kp(0, 2), 0.0,
+                   Kp(1, 0), Kp(1, 1), Kp(1, 2), 0.0,
+                   Kp(2, 0), Kp(2, 1), Kp(2, 2), 0.0};
 
   // Rectification matrix (stereo cameras only)
   // A rotation matrix aligning the camera coordinate system to the ideal
@@ -343,9 +358,23 @@ void K4ACalibrationTransformData::getRgbCameraInfo(sensor_msgs::CameraInfo& came
   //  (cx', cy') - these may differ from the values in K.
   // For monocular cameras, Tx = Ty = 0. Normally, monocular cameras will
   //  also have R = the identity and P[1:3,1:3] = K.
-  camera_info.P = {parameters->param.fx,  0.0f,                   parameters->param.cx,   0.0f,
-                   0.0f,                  parameters->param.fy,   parameters->param.cy,   0.0f,
-                   0.0f,                  0.0,                    1.0f,                   0.0f};
+
+  // From https://wiki.ros.org/image_pipeline/CameraInfo
+  // (4.1 Simple monocular rectification)
+  // [...] since ROS Electric, the camera_calibration package does monocular calibration to get K'
+  // using OpenCV's getOptimalNewCameraMatrix() function with argument 'alpha'=0.0 that cause K' ≠ K
+
+  // We mimic camera_calibration and set P from K' obtained from OpenCV's getOptimalNewCameraMatrix
+  // This way we get consistent behavior for factory calibration and camera_calibration package
+
+  cv::Matx33d intrinsics = cv::Matx33d(camera_info.K.data());
+  cv::Size imageSize(camera_info.width, camera_info.height);
+
+  cv::Matx33d Kp = cv::getOptimalNewCameraMatrix(intrinsics, camera_info.D, imageSize, 0.0);
+
+  camera_info.P = {Kp(0, 0), Kp(0, 1), Kp(0, 2), 0.0,
+                   Kp(1, 0), Kp(1, 1), Kp(1, 2), 0.0,
+                   Kp(2, 0), Kp(2, 1), Kp(2, 2), 0.0};
 
   // Rectification matrix (stereo cameras only)
   // A rotation matrix aligning the camera coordinate system to the ideal
